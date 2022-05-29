@@ -76,8 +76,35 @@ def test_find_by_id_existing_site(site_dao):
     assert found_site == site
 
 
-@pytest.mark.skip("Remove for challenge #1")
 def test_find_all(site_dao):
+    site1 = Site(id=1,
+                 capacity=10.0,
+                 panels=100,
+                 address="100 SE Pine St.",
+                 city="Portland",
+                 state="OR",
+                 postal_code="97202")
+
+    site2 = Site(id=2,
+                 capacity=25.0,
+                 panels=110,
+                 address="101 SW Ankeny",
+                 city="Portland",
+                 state="OR",
+                 postal_code="97203")
+
+    site3 = Site(id=3,
+                 capacity=100.0,
+                 panels=155,
+                 address="201 SE Burnside",
+                 city="Portland",
+                 state="OR",
+                 postal_code="97204")
+
+    site_dao.insert_many(site1, site2, site3)
+    assert site_dao.find_all() == {site1, site2, site3}
+
+def test_find_all_scan(site_dao):
     site1 = Site(id=1,
                  capacity=10.0,
                  panels=100,
