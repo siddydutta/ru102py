@@ -53,25 +53,18 @@ class SiteGeoDaoRedis(SiteGeoDaoBase, RedisDaoBase):
         return {FlatSiteSchema().load(site) for site in sites}
 
     def _find_by_geo_with_capacity(self, query: GeoQuery, **kwargs) -> Set[Site]:
-        # START Challenge #5
-        # Your task: Get the sites matching the GEO query.
-        # END Challenge #5
-
         p = self.redis.pipeline(transaction=False)
 
-        # START Challenge #5
-        #
-        # Your task: Populate a dictionary called "scores" whose keys are site
-        # IDs and whose values are the site's capacity.
-        #
-        # Make sure to run any Redis commands against a Pipeline object
-        # for better performance.
-        # END Challenge #5
+        # Get all site IDs within range of query
+        site_ids = self.redis.georadius(  # type: ignore
+            self.key_schema.site_geo_key(), query.coordinate.lng, query.coordinate.lat,
+            query.radius, query.radius_unit.value)
 
-        # Delete the next lines after you've populated a `site_ids`
-        # and `scores` variable.
-        site_ids: List[str] = []
-        scores: Dict[str, float] = {}
+        # Retrieve capacities (scores) for filtered site IDs
+        for site_id in site_ids:
+            p.zscore(self.key_schema.capacity_ranking_key(), site_id)
+        # Keys are site IDs and values are site's capacity
+        scores = dict(zip(site_ids, p.execute()))
 
         for site_id in site_ids:
             if scores[site_id] and scores[site_id] > CAPACITY_THRESHOLD:
@@ -88,12 +81,12 @@ class SiteGeoDaoRedis(SiteGeoDaoBase, RedisDaoBase):
 
     def find_all(self, **kwargs) -> Set[Site]:
         """Find all Sites."""
+        p = self.redis.pipeline(transaction=False)
+        
         site_ids = self.redis.zrange(self.key_schema.site_geo_key(), 0, -1)
-        sites = set()
-
         for site_id in site_ids:
             key = self.key_schema.site_hash_key(site_id)
-            site_hash = self.redis.hgetall(key)
-            sites.add(FlatSiteSchema().load(site_hash))
+            p.hgetall(key)
+        site_hashes = p.execute()
 
-        return sites
+        return {FlatSiteSchema().load(site) for site in site_hashes}
